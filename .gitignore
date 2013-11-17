@@ -16,3 +16,8 @@
 *.exe
 *.out
 *.app
+
+#helper
+tags
+*.swp
+*.d
