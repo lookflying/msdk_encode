@@ -10,21 +10,37 @@ typedef struct coded_buf_t{
 
 typedef struct msdk_encode_context_t{
 	mfxSession m_session;
-//	mfxVersion m_version;
 	mfxStatus m_status;
 	mfxVideoParam m_param;
 	mfxFrameAllocRequest m_request;
 	VADisplay m_va_dpy;
 	int m_fd;
 	mfxU16 m_nAsyncDepth;
+	mfxFrameSurface1 *m_surface;
+	mfxU16 m_surface_num;
+	mfxU16 m_last_surface;
+	mfxBitstream *m_bitstream;
+	mfxU16 m_bitstream_num;
+	mfxSyncPoint m_syncpoint;
 } msdk_encode_context;
 
 #define MSDK_ALIGN16(value)                      (((value + 15) >> 4) << 4) // round up to a multiple of 16
 #define MSDK_ALIGN32(value)                      (((value + 31) >> 5) << 5) // round up to a multiple of 32
 
+#define CHECK_NO_ERROR(err) assert(err == MFX_ERR_NONE)
+#define MSDK_IGNORE_MFX_STS(P, X)	{if ((X) == (P)) {P = MFX_ERR_NONE;}}
+#define MSDK_CHECK_POINTER(P, ...)	{if (!(P)) {return __VA_ARGS__;}}
 
 void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target);
-void msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf out_buf);
+
+/**
+
+	return value: 
+		1	got new encoded data; out_buf is valid
+		0 got no encoded data;  out_buf is invalid; output is buffered; please try again(if has no data to encode just pass NULL in yuv_buf)
+		-1 all input data has been encoded and output buffer is empty
+	*/
+int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf out_buf);
 void msdk_encode_close(msdk_encode_context *ctx);
 
 void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target);

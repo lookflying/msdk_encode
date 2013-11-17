@@ -1,12 +1,12 @@
 #include "msdk_encode.h"
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <va/va_drm.h>
+#include <unistd.h>
 #include <fcntl.h>
-#define CHECK_NO_ERROR(err) assert(err == MFX_ERR_NONE)
-#define MSDK_IGNORE_MFX_STS(P, X)                {if ((X) == (P)) {P = MFX_ERR_NONE;}}
-
+#include <string.h>
 mfxStatus va_to_mfx_status(VAStatus va_res)
 {
 	mfxStatus mfxRes = MFX_ERR_NONE;
@@ -124,9 +124,54 @@ mfxStatus msdk_encode_open_va_drm(msdk_encode_context *ctx){
 	return sts;
 }
 
+void msdk_encode_init_context(msdk_encode_context *ctx){
+	ctx->m_session = NULL;
+	ctx->m_status = MFX_ERR_NONE;
+	memset(&ctx->m_param, 0, sizeof(mfxVideoParam));
+	ctx->m_va_dpy = NULL;
+	ctx->m_fd = -1;
+	ctx->m_nAsyncDepth = 1;
+	ctx->m_surface = NULL;
+	ctx->m_surface_num = 0;
+	ctx->m_last_surface = 0;
+	ctx->m_bitstream = NULL;
+	ctx->m_bitstream_num = 0;
+	/*	memset(&ctx->m_surface, 0, sizeof(mfxFrameSurface1));
+			memset(&ctx->m_bitstream, 0, sizeof(mfxBitstream));*/
+	ctx->m_syncpoint = NULL;
+}
+
+mfxStatus msdk_encode_reset_bitstream(mfxBitstream* bitstream, unsigned int size){
+	if (size == 0){
+		if (bitstream->Data != NULL){
+			free(bitstream->Data);
+		}
+		memset(bitstream, 0, sizeof(mfxBitstream));
+		return MFX_ERR_NONE;
+	}else{
+		if (size < bitstream->MaxLength){
+			return MFX_ERR_UNSUPPORTED;
+		}else{
+			unsigned int aligned_size = MSDK_ALIGN32(size);
+			mfxU8* new_ptr = malloc(aligned_size);
+			MSDK_CHECK_POINTER(new_ptr, MFX_ERR_MEMORY_ALLOC);
+			if (bitstream->Data != NULL){
+				memmove(new_ptr, bitstream->Data + bitstream->DataOffset, bitstream->DataLength);
+				free(bitstream->Data);
+			}
+			bitstream->Data = new_ptr;
+			bitstream->DataOffset = 0;
+			bitstream->MaxLength = aligned_size;
+			return MFX_ERR_NONE;
+		}
+	}
+	assert(0);
+	return MFX_ERR_NONE;
+}
+
 void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target){
-	//ctx->m_version = {1, 1};
-	mfxVersion version = {1, 1};
+	msdk_encode_init_context(ctx);
+	mfxVersion version = {{1, 1}};
 	ctx->m_status = MFXInit(MFX_IMPL_HARDWARE_ANY, &version, &ctx->m_session);
 	printf("%s\n", ctx->m_status == MFX_ERR_UNSUPPORTED?"unsupported":"no error");
 	fflush(stdout);
@@ -137,27 +182,30 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		printf("using hardware\n");
 		ctx->m_status =  msdk_encode_open_va_drm(ctx);
 		CHECK_NO_ERROR(ctx->m_status);
-		MFXVideoCORE_SetHandle(ctx->m_session, MFX_HANDLE_VA_DISPLAY, ctx->m_va_dpy);
+		MFXVideoCORE_SetHandle(ctx->m_session, MFX_HANDLE_VA_DISPLAY, (mfxHDL)ctx->m_va_dpy);
 		/* In case of system memory we demonstrate "no external allocator" usage model.
 			 We don't call SetAllocator, Media SDK uses internal allocator.
 			 We use system memory allocator simply as a memory manager for application*/
-		//TODO m_pBufferAllocator SysMemBufferAllocator m_pmfxAllocatorParams
+		//FIXME (seem to be no need) m_pBufferAllocator SysMemBufferAllocator m_pmfxAllocatorParams
 
 
 	}else{
 		assert(0);
 	}
 	msdk_encode_set_param(ctx, width, height, bitrate, fps, target);
-	ctx->m_nAsyncDepth = 4;
+	ctx->m_nAsyncDepth = 1;
 
-	MFXVideoENCODE_QueryIOSurf(ctx->m_session, &ctx->m_param, &ctx->m_request);
+	ctx->m_status = MFXVideoENCODE_QueryIOSurf(ctx->m_session, &ctx->m_param, &ctx->m_request);
+	if (MFX_WRN_PARTIAL_ACCELERATION == ctx->m_status)
+	{
+		printf("WARNING: partial acceleration\n");
+		MSDK_IGNORE_MFX_STS(ctx->m_status, MFX_WRN_PARTIAL_ACCELERATION);
+	}
 	printf("Min = %u, Suggested = %u\n", ctx->m_request.NumFrameMin, ctx->m_request.NumFrameSuggested);
-	mfxU16 n_frames = ctx->m_request.NumFrameSuggested + ctx->m_nAsyncDepth - 1;
+	//FIXME (maybe one surface is enough)	
+	ctx->m_surface_num = ctx->m_request.NumFrameSuggested + ctx->m_nAsyncDepth - 1;
+	ctx->m_last_surface = ctx->m_surface_num - 1;
 
-
-	//TODO allocate memory according to suggested frames + nAsyncDepth -1
-	//TODO must init frames which are stored as struct surface1
-	MFXVideoENCODE_Init(ctx->m_session, &ctx->m_param);
 
 	//may be partial acceleration
 	if (MFX_WRN_PARTIAL_ACCELERATION == ctx->m_status)
@@ -166,13 +214,55 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		MSDK_IGNORE_MFX_STS(ctx->m_status, MFX_WRN_PARTIAL_ACCELERATION);
 	}
 	CHECK_NO_ERROR(ctx->m_status);
-	
+
+	//FIXME (memory can just use input buf) allocate memory according to suggested frames + nAsyncDepth -1
+	//must init frames which are stored as struct surface1
+	MFXVideoENCODE_Init(ctx->m_session, &ctx->m_param);
+	ctx->m_surface = (mfxFrameSurface1*)malloc(ctx->m_surface_num * sizeof(mfxFrameSurface1));
+	assert(ctx->m_surface != NULL);
+	memset(ctx->m_surface, 0, ctx->m_surface_num * sizeof(mfxFrameSurface1));
+
+	mfxFrameSurface1 *surf_ptr = ctx->m_surface;
+	mfxU16 i;	
+	for (i = 0; i < ctx->m_surface_num; ++i){
+		memcpy(&surf_ptr->Info, &ctx->m_param.mfx.FrameInfo, sizeof(mfxInfoMFX));
+		mfxU32 aligned_width = MSDK_ALIGN32(width);
+		mfxU32 aligned_height = MSDK_ALIGN32(height);
+		mfxU32 aligned_size = aligned_width * aligned_height * 3 / 2;
+		surf_ptr->Data.B = surf_ptr->Data.Y = (mfxU8*)malloc(aligned_size);
+		assert(surf_ptr->Data.Y != NULL);
+		surf_ptr->Data.U = surf_ptr->Data.Y + aligned_width * aligned_height;
+		surf_ptr->Data.V = surf_ptr->Data.U + (aligned_width >> 1) * (aligned_height >> 1);
+		surf_ptr->Data.Pitch = aligned_width;
+		++surf_ptr;
+	}
+
+
+	ctx->m_bitstream_num = ctx->m_surface_num;//FIXME
+	ctx->m_bitstream = (mfxBitstream*)malloc(ctx->m_bitstream_num * sizeof(mfxBitstream));
+	assert(ctx->m_bitstream != NULL);
+	memset(ctx->m_bitstream, 0, ctx->m_bitstream_num * sizeof(mfxBitstream));
+	mfxBitstream * bs_ptr = ctx->m_bitstream;
+	mfxVideoParam param;
+	MFXVideoENCODE_GetVideoParam(ctx->m_session, &param);
+	for (i = 0; i < ctx->m_bitstream_num; ++i){
+//FIXME why size always 0;
+//	msdk_encode_reset_bitstream(bs_ptr, param.mfx.BufferSizeInKB * 1024);
+		msdk_encode_reset_bitstream(bs_ptr, param.mfx.BufferSizeInKB * 1024);
+		++bs_ptr;
+	}
+
+
 	//should be ok
 }
 
+int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf out_buf){
 
-void msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf out_buf){
+	mfxFrameSurface1* surface = NULL;
+	mfxU16 surface_idx = 0;
+//TODO	MFXVideoENCODE_EncodeFrameAsync(
 
+	return 0;
 }
 
 void msdk_encode_close(msdk_encode_context *ctx){
