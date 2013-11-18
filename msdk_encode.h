@@ -26,7 +26,6 @@ typedef struct msdk_encode_context_t{
 	mfxFrameSurface1 *m_surface;
 	mfxU16 m_surface_num;
 	mfxU16 m_last_surface;
-	mfxBitstream *m_bitstream;
 	msdk_encode_task * m_task;
 } msdk_encode_context;
 

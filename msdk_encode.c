@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#define DEBUG 0
 mfxStatus va_to_mfx_status(VAStatus va_res)
 {
 	mfxStatus mfxRes = MFX_ERR_NONE;
@@ -134,8 +135,7 @@ void msdk_encode_init_context(msdk_encode_context *ctx){
 	ctx->m_surface = NULL;
 	ctx->m_surface_num = 0;
 	ctx->m_last_surface = 0;
-	/*	memset(&ctx->m_surface, 0, sizeof(mfxFrameSurface1));
-			memset(&ctx->m_bitstream, 0, sizeof(mfxBitstream));*/
+	ctx->m_task = NULL;//not used in this demo	
 }
 
 mfxStatus msdk_encode_reset_bitstream(mfxBitstream* bitstream, unsigned int size){
@@ -183,7 +183,6 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		/* In case of system memory we demonstrate "no external allocator" usage model.
 			 We don't call SetAllocator, Media SDK uses internal allocator.
 			 We use system memory allocator simply as a memory manager for application*/
-		//FIXME (seem to be no need) m_pBufferAllocator SysMemBufferAllocator m_pmfxAllocatorParams
 
 
 	}else{
@@ -198,8 +197,8 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		printf("WARNING: partial acceleration\n");
 		MSDK_IGNORE_MFX_STS(ctx->m_status, MFX_WRN_PARTIAL_ACCELERATION);
 	}
-	printf("Min = %u, Suggested = %u\n", ctx->m_request.NumFrameMin, ctx->m_request.NumFrameSuggested);
-	//FIXME (maybe one surface is enough)	
+//	printf("Min = %u, Suggested = %u\n", ctx->m_request.NumFrameMin, ctx->m_request.NumFrameSuggested);
+
 	ctx->m_surface_num = ctx->m_request.NumFrameSuggested + ctx->m_nAsyncDepth - 1;
 	ctx->m_last_surface = ctx->m_surface_num - 1;
 
@@ -212,8 +211,6 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 	}
 	CHECK_NO_ERROR(ctx->m_status);
 
-	//FIXME (memory can just use input buf) allocate memory according to suggested frames + nAsyncDepth -1
-	//must init frames which are stored as struct surface1
 	ctx->m_status =	MFXVideoENCODE_Init(ctx->m_session, &ctx->m_param);
 	if (MFX_WRN_PARTIAL_ACCELERATION == ctx->m_status)
 	{
@@ -240,25 +237,6 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		++surf_ptr;
 	}
 
-	/*
-		 ctx->m_bitstream_num = ctx->m_surface_num;//FIXME
-		 ctx->m_bitstream = (mfxBitstream*)malloc(ctx->m_bitstream_num * sizeof(mfxBitstream));
-		 assert(ctx->m_bitstream != NULL);
-		 memset(ctx->m_bitstream, 0, ctx->m_bitstream_num * sizeof(mfxBitstream));
-		 mfxBitstream * bs_ptr = ctx->m_bitstream;
-		 mfxVideoParam param;
-		 MFXVideoENCODE_GetVideoParam(ctx->m_session, &param);
-		 for (i = 0; i < ctx->m_bitstream_num; ++i){
-		 mfxU32 aligned_width = MSDK_ALIGN32(width);
-		 mfxU32 aligned_height = MSDK_ALIGN32(height);
-//FIXME why size always 0;
-//	msdk_encode_reset_bitstream(bs_ptr, param.mfx.BufferSizeInKB * 1024);
-msdk_encode_reset_bitstream(bs_ptr, aligned_width * aligned_height * 4);
-++bs_ptr;
-}
-
-	 */
-//should be ok
 }
 
 void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_buf){
@@ -269,7 +247,6 @@ void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_
 	width2 = surface->Info.CropW / 2;
 	height2 = surface->Info.CropH / 2;
 	pitch = surface->Data.Pitch;
-//	memcpy(surface->Data.Y, yuv_buf, size); 
 	unsigned int i, j;
 	unsigned char *y_ptr = surface->Data.Y;
 	unsigned char *y_src = yuv_buf;
@@ -319,15 +296,18 @@ got_free_surface:
 
 
 	for(;;){
+#if DEBUG
 		static int count;
+#endif
 		ctx->m_status = MFXVideoENCODE_EncodeFrameAsync(
 				ctx->m_session,
 				NULL,
 				surface,
 				&task.m_bitstream,
 				&task.m_syncpoint);
-
+#if DEBUG
 		printf("count = %d, sync_point == 0x%X\n", count++, (unsigned int)task.m_syncpoint);
+#endif
 		if (MFX_ERR_NONE < ctx->m_status && !task.m_syncpoint){
 			if (MFX_WRN_DEVICE_BUSY == ctx->m_status)
 				MSDK_SLEEP(1);
@@ -345,21 +325,37 @@ got_free_surface:
 	}
 	if (task.m_syncpoint){
 		ctx->m_status = MFXVideoCORE_SyncOperation(ctx->m_session, task.m_syncpoint, 250000);
+#if DEBUG
+//		printf("sync_point == 0x%X\n", (unsigned int)task.m_syncpoint);
 		if (MFX_WRN_IN_EXECUTION == ctx->m_status){
 			printf("in execution\n");
 		}else if (MFX_ERR_ABORTED == ctx->m_status){
 			printf("aborted\n");
 		}
 		fflush(stdout);
+#endif
 		CHECK_NO_ERROR(ctx->m_status);
 	}
+#if DEBUG
 	printf("offset = %u, len = %u, type = %X\n", task.m_bitstream.DataOffset, task.m_bitstream.DataLength, task.m_bitstream.FrameType);
-	out_buf->buf = (unsigned char*) malloc(task.m_bitstream.DataLength);
+#endif
+	out_buf->buf = (unsigned char*) malloc(task.m_bitstream.DataLength);//should be freed after used outside
 	out_buf->len = task.m_bitstream.DataLength;
 	memcpy(out_buf->buf, task.m_bitstream.Data + task.m_bitstream.DataOffset, out_buf->len);
+	msdk_encode_reset_bitstream(&task.m_bitstream, 0);
 	return 0;
 }
 
 void msdk_encode_close(msdk_encode_context *ctx){
-
+	mfxU16 i;	
+	vaTerminate(ctx->m_va_dpy);
+	close(ctx->m_fd);
+	mfxFrameSurface1 *surf_ptr = ctx->m_surface;
+	for (i = 0; i < ctx->m_surface_num; ++i){
+		free(surf_ptr->Data.Y);
+		++surf_ptr;
+	}
+	free(ctx->m_surface);
+	MFXVideoENCODE_Close(ctx->m_session);
+	MFXClose(ctx->m_session);	
 }
