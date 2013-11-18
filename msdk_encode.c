@@ -134,11 +134,8 @@ void msdk_encode_init_context(msdk_encode_context *ctx){
 	ctx->m_surface = NULL;
 	ctx->m_surface_num = 0;
 	ctx->m_last_surface = 0;
-	ctx->m_bitstream = NULL;
-	ctx->m_bitstream_num = 0;
 	/*	memset(&ctx->m_surface, 0, sizeof(mfxFrameSurface1));
 			memset(&ctx->m_bitstream, 0, sizeof(mfxBitstream));*/
-	ctx->m_syncpoint = NULL;
 }
 
 mfxStatus msdk_encode_reset_bitstream(mfxBitstream* bitstream, unsigned int size){
@@ -243,42 +240,57 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		++surf_ptr;
 	}
 
+	/*
+		 ctx->m_bitstream_num = ctx->m_surface_num;//FIXME
+		 ctx->m_bitstream = (mfxBitstream*)malloc(ctx->m_bitstream_num * sizeof(mfxBitstream));
+		 assert(ctx->m_bitstream != NULL);
+		 memset(ctx->m_bitstream, 0, ctx->m_bitstream_num * sizeof(mfxBitstream));
+		 mfxBitstream * bs_ptr = ctx->m_bitstream;
+		 mfxVideoParam param;
+		 MFXVideoENCODE_GetVideoParam(ctx->m_session, &param);
+		 for (i = 0; i < ctx->m_bitstream_num; ++i){
+		 mfxU32 aligned_width = MSDK_ALIGN32(width);
+		 mfxU32 aligned_height = MSDK_ALIGN32(height);
+//FIXME why size always 0;
+//	msdk_encode_reset_bitstream(bs_ptr, param.mfx.BufferSizeInKB * 1024);
+msdk_encode_reset_bitstream(bs_ptr, aligned_width * aligned_height * 4);
+++bs_ptr;
+}
 
-	ctx->m_bitstream_num = ctx->m_surface_num;//FIXME
-	ctx->m_bitstream = (mfxBitstream*)malloc(ctx->m_bitstream_num * sizeof(mfxBitstream));
-	assert(ctx->m_bitstream != NULL);
-	memset(ctx->m_bitstream, 0, ctx->m_bitstream_num * sizeof(mfxBitstream));
-	mfxBitstream * bs_ptr = ctx->m_bitstream;
-	mfxVideoParam param;
-	MFXVideoENCODE_GetVideoParam(ctx->m_session, &param);
-	for (i = 0; i < ctx->m_bitstream_num; ++i){
-		mfxU32 aligned_width = MSDK_ALIGN32(width);
-		mfxU32 aligned_height = MSDK_ALIGN32(height);
-		//FIXME why size always 0;
-		//	msdk_encode_reset_bitstream(bs_ptr, param.mfx.BufferSizeInKB * 1024);
-		msdk_encode_reset_bitstream(bs_ptr, aligned_width * aligned_height * 4);
-		++bs_ptr;
-	}
-
-
-	//should be ok
+	 */
+//should be ok
 }
 
 void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_buf){
 	mfxU32 size = surface->Info.CropW * surface->Info.CropH; 
-	mfxU32 width2, height2, pitch;
+	mfxU32 width, height, width2, height2, pitch;
+	width = surface->Info.CropW;
+	height = surface->Info.CropH;
 	width2 = surface->Info.CropW / 2;
 	height2 = surface->Info.CropH / 2;
 	pitch = surface->Data.Pitch;
-	memcpy(surface->Data.Y, yuv_buf, size); 
+//	memcpy(surface->Data.Y, yuv_buf, size); 
 	unsigned int i, j;
-	unsigned char *u_ptr = yuv_buf + size;
-	unsigned char *v_ptr = yuv_buf + size + size / 4;
+	unsigned char *y_ptr = surface->Data.Y;
+	unsigned char *y_src = yuv_buf;
+	for (i = 0; i < height; ++i){
+		memcpy(y_ptr, y_src, width);
+		y_ptr += pitch;
+		y_src += width;
+	}
+	unsigned char *u_ptr = surface->Data.UV;
+	unsigned char *v_ptr = surface->Data.UV + 1;
+	unsigned char *u_src = yuv_buf + size ;
+	unsigned char *v_src = yuv_buf + size + size / 4;
 	for (i = 0; i < height2; ++i){
 		for (j = 0; j < width2; ++j){
-			surface->Data.UV[i * pitch + j * 2] = u_ptr[i * width2 + j];
-			surface->Data.UV[i * pitch + j * 2 + 1] = v_ptr[i * width2 + j];
+			u_ptr[j * 2] = u_src[j];
+			v_ptr[j * 2] = v_src[j];
 		}
+			u_ptr += pitch;
+			u_src += width2;
+			v_ptr += pitch;
+			v_src += width2;
 	}
 }
 
@@ -290,17 +302,16 @@ int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, c
 	memset(&task.m_bitstream, 0, sizeof(mfxBitstream));
 	msdk_encode_reset_bitstream(&task.m_bitstream, buf_size);
 	task.m_syncpoint = NULL;
-	mfxBitstream* bitstream = NULL;
-	mfxU16 bitstream_idx = 0;
 
 	surface_idx = (ctx->m_last_surface + 1) % ctx->m_surface_num;
-	surface = &ctx->m_surface[surface_idx];
 	mfxU16 i = 0;
 	for (i = 0; i < ctx->m_surface_num; ++i){
+		surface = &ctx->m_surface[surface_idx];
 		if (0 == surface->Data.Locked){
-			ctx->m_last_surface = (surface_idx + i) % ctx->m_surface_num;
+			ctx->m_last_surface = surface_idx;
 			goto got_free_surface;
-		}
+		}	
+		surface_idx = (surface_idx + 1) % ctx->m_surface_num;
 	}
 	assert(0);
 got_free_surface:
@@ -308,12 +319,15 @@ got_free_surface:
 
 
 	for(;;){
-		ctx->m_status = MFXVideoENCODE_EncodeFrameAsync(ctx->m_session,
+		static int count;
+		ctx->m_status = MFXVideoENCODE_EncodeFrameAsync(
+				ctx->m_session,
 				NULL,
 				surface,
 				&task.m_bitstream,
 				&task.m_syncpoint);
 
+		printf("count = %d, sync_point == 0x%X\n", count++, (unsigned int)task.m_syncpoint);
 		if (MFX_ERR_NONE < ctx->m_status && !task.m_syncpoint){
 			if (MFX_WRN_DEVICE_BUSY == ctx->m_status)
 				MSDK_SLEEP(1);
@@ -329,8 +343,20 @@ got_free_surface:
 			break;
 		}
 	}
-	ctx->m_status = MFXVideoCORE_SyncOperation(ctx->m_session, task.m_syncpoint, 250000);
-	CHECK_NO_ERROR(ctx->m_status);
+	if (task.m_syncpoint){
+		ctx->m_status = MFXVideoCORE_SyncOperation(ctx->m_session, task.m_syncpoint, 250000);
+		if (MFX_WRN_IN_EXECUTION == ctx->m_status){
+			printf("in execution\n");
+		}else if (MFX_ERR_ABORTED == ctx->m_status){
+			printf("aborted\n");
+		}
+		fflush(stdout);
+		CHECK_NO_ERROR(ctx->m_status);
+	}
+	printf("offset = %u, len = %u, type = %X\n", task.m_bitstream.DataOffset, task.m_bitstream.DataLength, task.m_bitstream.FrameType);
+	out_buf->buf = (unsigned char*) malloc(task.m_bitstream.DataLength);
+	out_buf->len = task.m_bitstream.DataLength;
+	memcpy(out_buf->buf, task.m_bitstream.Data + task.m_bitstream.DataOffset, out_buf->len);
 	return 0;
 }
 

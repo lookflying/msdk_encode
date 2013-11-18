@@ -8,6 +8,13 @@ typedef struct coded_buf_t{
 	unsigned int len;
 } coded_buf;
 
+typedef struct msdk_encode_task_t{
+	mfxBitstream m_bitstream;
+	mfxSyncPoint m_syncpoint;
+	struct msdk_encode_task_t* next;
+} msdk_encode_task;
+
+
 typedef struct msdk_encode_context_t{
 	mfxSession m_session;
 	mfxStatus m_status;
@@ -20,14 +27,9 @@ typedef struct msdk_encode_context_t{
 	mfxU16 m_surface_num;
 	mfxU16 m_last_surface;
 	mfxBitstream *m_bitstream;
-	mfxU16 m_bitstream_num;
-	mfxSyncPoint m_syncpoint;
+	msdk_encode_task * m_task;
 } msdk_encode_context;
 
-typedef struct msdk_encode_task_t{
-	mfxBitstream m_bitstream;
-	mfxSyncPoint m_syncpoint;
-} msdk_encode_task;
 
 #define MSDK_ALIGN16(value)                      (((value + 15) >> 4) << 4) // round up to a multiple of 16
 #define MSDK_ALIGN32(value)                      (((value + 31) >> 5) << 5) // round up to a multiple of 32
