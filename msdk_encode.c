@@ -197,7 +197,7 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		printf("WARNING: partial acceleration\n");
 		MSDK_IGNORE_MFX_STS(ctx->m_status, MFX_WRN_PARTIAL_ACCELERATION);
 	}
-//	printf("Min = %u, Suggested = %u\n", ctx->m_request.NumFrameMin, ctx->m_request.NumFrameSuggested);
+	//	printf("Min = %u, Suggested = %u\n", ctx->m_request.NumFrameMin, ctx->m_request.NumFrameSuggested);
 
 	ctx->m_surface_num = ctx->m_request.NumFrameSuggested + ctx->m_nAsyncDepth - 1;
 	ctx->m_last_surface = ctx->m_surface_num - 1;
@@ -264,14 +264,14 @@ void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_
 			u_ptr[j * 2] = u_src[j];
 			v_ptr[j * 2] = v_src[j];
 		}
-			u_ptr += pitch;
-			u_src += width2;
-			v_ptr += pitch;
-			v_src += width2;
+		u_ptr += pitch;
+		u_src += width2;
+		v_ptr += pitch;
+		v_src += width2;
 	}
 }
 
-int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf){
+int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf, int buf_allocated){
 	mfxU32 buf_size = ctx->m_param.mfx.FrameInfo.CropW * ctx->m_param.mfx.FrameInfo.CropH * 4;
 	mfxFrameSurface1* surface = NULL;
 	mfxU16 surface_idx = 0;
@@ -326,7 +326,7 @@ got_free_surface:
 	if (task.m_syncpoint){
 		ctx->m_status = MFXVideoCORE_SyncOperation(ctx->m_session, task.m_syncpoint, 250000);
 #if DEBUG
-//		printf("sync_point == 0x%X\n", (unsigned int)task.m_syncpoint);
+		//		printf("sync_point == 0x%X\n", (unsigned int)task.m_syncpoint);
 		if (MFX_WRN_IN_EXECUTION == ctx->m_status){
 			printf("in execution\n");
 		}else if (MFX_ERR_ABORTED == ctx->m_status){
@@ -339,7 +339,9 @@ got_free_surface:
 #if DEBUG
 	printf("offset = %u, len = %u, type = %X\n", task.m_bitstream.DataOffset, task.m_bitstream.DataLength, task.m_bitstream.FrameType);
 #endif
-	out_buf->buf = (unsigned char*) malloc(task.m_bitstream.DataLength);//should be freed after used outside
+	if (!buf_allocated){
+		out_buf->buf = (unsigned char*) malloc(task.m_bitstream.DataLength);//should be freed after used outside
+	}
 	out_buf->len = task.m_bitstream.DataLength;
 	memcpy(out_buf->buf, task.m_bitstream.Data + task.m_bitstream.DataOffset, out_buf->len);
 	msdk_encode_reset_bitstream(&task.m_bitstream, 0);

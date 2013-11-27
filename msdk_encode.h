@@ -4,6 +4,7 @@
 #include "mfxdefs.h"
 #include <va/va.h>
 #include "buffdef.h"
+
 typedef struct coded_buf_t{
 	unsigned char * buf;
 	unsigned int len;
@@ -47,7 +48,7 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		0 got no encoded data;  out_buf is invalid; output is buffered; please try again(if has no data to encode just pass NULL in yuv_buf)
 		-1 all input data has been encoded and output buffer is empty
 	*/
-int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf);
+int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf, int buf_allocated);
 void msdk_encode_close(msdk_encode_context *ctx);
 
 void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target);

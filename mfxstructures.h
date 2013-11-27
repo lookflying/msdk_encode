@@ -31,7 +31,7 @@ File Name: mfxstructures.h
 #define __MFXSTRUCTURES_H__
 #include "mfxcommon.h"
 
-//#pragma warning(disable: 4201)
+/*#pragma warning(disable: 4201)*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -950,7 +950,7 @@ typedef struct {
 } mfxExtEncoderROI;
 
 #ifdef __cplusplus
-} // extern "C"
+} /* extern "C"*/
 #endif
 
 #endif
