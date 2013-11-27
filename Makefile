@@ -27,7 +27,7 @@
     # The executable file name.
     # It must be specified.
     # PROGRAM   := a.out    # the executable name
-    PROGRAM   := libmsdkencode.so
+    PROGRAM   := libvaenc.so
 
     # The directories in which source files reside.
     # At least one path should be specified.
@@ -60,7 +60,7 @@
 
     # The library and the link options ( C and C++ common).
     #LDFLAGS   := $(MEDIASDK_INSTALL_FOLDER)/samples/_build/lin_x64/release/sample_encode/libsample_encode.so
-	LDFLAGS   := libmfxhw64.so  /usr/lib/x86_64-linux-gnu/libva.so /usr/lib/x86_64-linux-gnu/libva-drm.so
+	LDFLAGS   :=  -fPIC -shared libmfxhw64.so  /usr/lib/x86_64-linux-gnu/libva.so /usr/lib/x86_64-linux-gnu/libva-drm.so
 	LDFLAGS   += 
 
     ## Implict Section: change the following only when necessary.

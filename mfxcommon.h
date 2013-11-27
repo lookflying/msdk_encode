@@ -31,7 +31,7 @@ File Name: mfxcommon.h
 #define __MFXCOMMON_H__
 #include "mfxdefs.h"
 
-//#pragma warning(disable: 4201)
+/*#pragma warning(disable: 4201)*/
 
 #ifdef __cplusplus
 extern "C"

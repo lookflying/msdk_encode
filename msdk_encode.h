@@ -3,11 +3,11 @@
 #include "mfxvideo.h"
 #include "mfxdefs.h"
 #include <va/va.h>
+#include "buffdef.h"
 typedef struct coded_buf_t{
 	unsigned char * buf;
 	unsigned int len;
 } coded_buf;
-
 typedef struct msdk_encode_task_t{
 	mfxBitstream m_bitstream;
 	mfxSyncPoint m_syncpoint;
