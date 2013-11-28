@@ -50,6 +50,7 @@ int encode_frame(unsigned char *inputdata,
 	fclose(msdk_264_file);
 	fclose(msdk_yuv_file);
 #endif
+	return 0;
 }
 
 int close_encoder(){
