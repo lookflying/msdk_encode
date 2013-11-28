@@ -98,6 +98,18 @@ void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int 
 	ctx->m_param.mfx.FrameInfo.CropY = 0;
 	ctx->m_param.mfx.FrameInfo.CropW = width;
 	ctx->m_param.mfx.FrameInfo.CropH = height;
+	
+	ctx->m_ext_param = (mfxExtBuffer**)malloc(sizeof(mfxExtBuffer*) * 2);
+
+	ctx->m_coding_option.PicTimingSEI = MFX_CODINGOPTION_ON;
+	ctx->m_ext_param[0] = (mfxExtBuffer*)&ctx->m_coding_option;
+
+//do nothing with picture_timing_sei , hope to be useful
+	ctx->m_ext_param[1] = (mfxExtBuffer*)&ctx->m_picture_timing_sei;
+
+	ctx->m_param.ExtParam = ctx->m_ext_param;
+	ctx->m_param.NumExtParam = 2;
+
 }
 
 mfxStatus msdk_encode_open_va_drm(msdk_encode_context *ctx){
@@ -128,13 +140,22 @@ mfxStatus msdk_encode_open_va_drm(msdk_encode_context *ctx){
 void msdk_encode_init_context(msdk_encode_context *ctx){
 	ctx->m_session = NULL;
 	ctx->m_status = MFX_ERR_NONE;
-	memset(&ctx->m_param, 0, sizeof(mfxVideoParam));
+	memset(&ctx->m_param, 0, sizeof(ctx->m_param));
 	ctx->m_va_dpy = NULL;
 	ctx->m_fd = -1;
 	ctx->m_nAsyncDepth = 1;
 	ctx->m_surface = NULL;
 	ctx->m_surface_num = 0;
 	ctx->m_last_surface = 0;
+
+	memset(&ctx->m_coding_option, 0, sizeof(ctx->m_coding_option));
+	ctx->m_coding_option.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
+	ctx->m_coding_option.Header.BufferSz = sizeof(ctx->m_coding_option);
+
+	memset(&ctx->m_picture_timing_sei, 0, sizeof(ctx->m_picture_timing_sei));
+	ctx->m_picture_timing_sei.Header.BufferId = MFX_EXTBUFF_PICTURE_TIMING_SEI;
+	ctx->m_picture_timing_sei.Header.BufferSz = sizeof(ctx->m_picture_timing_sei);
+
 	ctx->m_task = NULL;//not used in this demo	
 }
 

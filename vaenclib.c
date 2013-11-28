@@ -54,5 +54,5 @@ int encode_frame(unsigned char *inputdata,
 
 int close_encoder(){
 	msdk_encode_close(&ctx);
-
+	return 0;
 }
