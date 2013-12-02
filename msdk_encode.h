@@ -23,6 +23,9 @@ typedef struct msdk_encode_context_t{
 
 	mfxExtCodingOption m_coding_option;
 	mfxExtPictureTimingSEI m_picture_timing_sei;
+
+	mfxU64 m_timestamp;
+
 	mfxExtBuffer ** m_ext_param;
 	mfxFrameAllocRequest m_request;
 	VADisplay m_va_dpy;

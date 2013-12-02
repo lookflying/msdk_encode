@@ -156,6 +156,8 @@ void msdk_encode_init_context(msdk_encode_context *ctx){
 	ctx->m_picture_timing_sei.Header.BufferId = MFX_EXTBUFF_PICTURE_TIMING_SEI;
 	ctx->m_picture_timing_sei.Header.BufferSz = sizeof(ctx->m_picture_timing_sei);
 
+	ctx->m_timestamp = 0;
+
 	ctx->m_task = NULL;//not used in this demo	
 }
 
@@ -314,7 +316,7 @@ int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, c
 	assert(0);
 got_free_surface:
 	msdk_encode_copy_to_surface(surface, yuv_buf);
-
+	surface->Data.TimeStamp = ctx->m_timestamp;
 
 	for(;;){
 #if DEBUG
@@ -326,6 +328,9 @@ got_free_surface:
 				surface,
 				&task.m_bitstream,
 				&task.m_syncpoint);
+
+		ctx->m_timestamp++;
+
 #if DEBUG
 		printf("count = %d, sync_point == 0x%X\n", count++, (unsigned int)task.m_syncpoint);
 #endif
