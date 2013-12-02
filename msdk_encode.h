@@ -50,10 +50,9 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 
 /**
 
+	please set buf_allocated 0 if out_buf is allocated
 	return value: 
-		1	got new encoded data; out_buf is valid
-		0 got no encoded data;  out_buf is invalid; output is buffered; please try again(if has no data to encode just pass NULL in yuv_buf)
-		-1 all input data has been encoded and output buffer is empty
+	currently return value is always 0, out_buf->len indicates the size 
 	*/
 int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf, int buf_allocated);
 void msdk_encode_close(msdk_encode_context *ctx);

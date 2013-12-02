@@ -22,6 +22,7 @@ int init_encoder(int argc, char *argv[]){
 	return 0;
 }
 
+/*return value is always 0, avc_p->length indicates the length of output data which can be zero!*/
 int encode_frame(unsigned char *inputdata,
 			   struct coded_buff *avc_p){
 #if DUMP
