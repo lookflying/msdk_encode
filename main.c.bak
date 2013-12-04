@@ -16,8 +16,9 @@ int main(int argc, char** argv){
 	msdk_encode_init(&ctx, width, height, bitrate, fps, MFX_TARGETUSAGE_BALANCED);
 	//	unsigned char* buf = (unsigned char*)malloc(1280 * 720 * 3 / 2);
 
-	infile = fopen("/home/lookflying/john_carter_720p.yuv", "rb");
-	outfile = fopen("/home/lookflying/john_carter_720p.264", "wb");
+	/*infile = fopen("/home/lookflying/john_carter_720p.yuv", "rb");*/
+	infile = fopen(argv[1], "rb");
+	outfile = fopen("test.264", "wb");
 	fseek(infile, 0, SEEK_END);
 	unsigned int size = ftell(infile);
 	rewind(infile);
@@ -28,6 +29,7 @@ int main(int argc, char** argv){
 	assert(yuv_buf != NULL);
 	while(fread(yuv_buf, 1, width*height*3/2, infile) == width*height*3/2){
 		msdk_encode_encode_frame(&ctx, yuv_buf, &outbuf, 0);
+		printf("buf len = %u\n", outbuf.len);
 		fwrite(outbuf.buf, 1, outbuf.len, outfile);
 		free(outbuf.buf);
 	}
