@@ -98,17 +98,25 @@ void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int 
 	ctx->m_param.mfx.FrameInfo.CropY = 0;
 	ctx->m_param.mfx.FrameInfo.CropW = width;
 	ctx->m_param.mfx.FrameInfo.CropH = height;
-	
+
+	ctx->m_param.mfx.GopPicSize = 30;
+	ctx->m_param.mfx.GopRefDist = 1;//Distance between I- or P- key frames (1 means no B-frames)
+	ctx->m_param.AsyncDepth = 1;
+	ctx->m_param.mfx.NumRefFrame = 5;
+
 	ctx->m_ext_param = (mfxExtBuffer**)malloc(sizeof(mfxExtBuffer*) * 2);
+	ctx->m_param.NumExtParam = 0;
 
-	ctx->m_coding_option.PicTimingSEI = MFX_CODINGOPTION_ON;
+//	ctx->m_coding_option.MaxDecFrameBuffering = 1;
+//	ctx->m_coding_option.RefPicMarkRep = MFX_CODINGOPTION_ON; //repeat sei feature
+
+//	ctx->m_coding_option.PicTimingSEI = MFX_CODINGOPTION_ON;
 	ctx->m_ext_param[0] = (mfxExtBuffer*)&ctx->m_coding_option;
-
+	ctx->m_param.NumExtParam++;
 //do nothing with picture_timing_sei , hope to be useful
-	ctx->m_ext_param[1] = (mfxExtBuffer*)&ctx->m_picture_timing_sei;
+//	ctx->m_ext_param[1] = (mfxExtBuffer*)&ctx->m_picture_timing_sei;
 
 	ctx->m_param.ExtParam = ctx->m_ext_param;
-	ctx->m_param.NumExtParam = 2;
 
 }
 
@@ -151,6 +159,12 @@ void msdk_encode_init_context(msdk_encode_context *ctx){
 	memset(&ctx->m_coding_option, 0, sizeof(ctx->m_coding_option));
 	ctx->m_coding_option.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
 	ctx->m_coding_option.Header.BufferSz = sizeof(ctx->m_coding_option);
+
+	memset(&ctx->m_coding_option2, 0, sizeof(ctx->m_coding_option2));
+	ctx->m_coding_option2.Header.BufferId = MFX_EXTBUFF_CODING_OPTION2;
+	ctx->m_coding_option2.Header.BufferSz = sizeof(ctx->m_coding_option2);
+
+
 
 	memset(&ctx->m_picture_timing_sei, 0, sizeof(ctx->m_picture_timing_sei));
 	ctx->m_picture_timing_sei.Header.BufferId = MFX_EXTBUFF_PICTURE_TIMING_SEI;
@@ -212,7 +226,7 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		assert(0);
 	}
 	msdk_encode_set_param(ctx, width, height, bitrate, fps, target);
-	ctx->m_nAsyncDepth = 1;
+	ctx->m_nAsyncDepth = ctx->m_param.AsyncDepth;
 
 	ctx->m_status = MFXVideoENCODE_QueryIOSurf(ctx->m_session, &ctx->m_param, &ctx->m_request);
 	if (MFX_WRN_PARTIAL_ACCELERATION == ctx->m_status)
@@ -260,6 +274,8 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		++surf_ptr;
 	}
 
+	
+	
 }
 
 void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_buf){

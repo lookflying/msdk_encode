@@ -22,6 +22,7 @@ typedef struct msdk_encode_context_t{
 	mfxVideoParam m_param;
 
 	mfxExtCodingOption m_coding_option;
+	mfxExtCodingOption2 m_coding_option2;
 	mfxExtPictureTimingSEI m_picture_timing_sei;
 
 	mfxU64 m_timestamp;
