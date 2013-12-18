@@ -78,8 +78,16 @@ mfxStatus ConvertFrameRate(mfxF64 dFrameRate, mfxU32* pnFrameRateExtN, mfxU32* p
 	return MFX_ERR_NONE;
 }
 
-void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target){
-	ctx->m_param.mfx.CodecId = MFX_CODEC_AVC;
+void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps,int codec_id, int target){
+	switch (codec_id){
+		case MSDK_ENCODE_MPEG2:
+			ctx->m_param.mfx.CodecId = MFX_CODEC_MPEG2;
+			break;	
+		case MSDK_ENCODE_H264:
+		default:
+			ctx->m_param.mfx.CodecId = MFX_CODEC_AVC;
+			break;
+	}
 	ctx->m_param.mfx.TargetUsage = (mfxU16) target;
 	ctx->m_param.mfx.TargetKbps = (mfxU16) bitrate;
 	ctx->m_param.mfx.RateControlMethod = (mfxU16) MFX_RATECONTROL_CBR;
@@ -107,14 +115,14 @@ void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int 
 	ctx->m_ext_param = (mfxExtBuffer**)malloc(sizeof(mfxExtBuffer*) * 2);
 	ctx->m_param.NumExtParam = 0;
 
-//	ctx->m_coding_option.MaxDecFrameBuffering = 1;
-//	ctx->m_coding_option.RefPicMarkRep = MFX_CODINGOPTION_ON; //repeat sei feature
+	//	ctx->m_coding_option.MaxDecFrameBuffering = 1;
+	//	ctx->m_coding_option.RefPicMarkRep = MFX_CODINGOPTION_ON; //repeat sei feature
 
-//	ctx->m_coding_option.PicTimingSEI = MFX_CODINGOPTION_ON;
+	//	ctx->m_coding_option.PicTimingSEI = MFX_CODINGOPTION_ON;
 	ctx->m_ext_param[0] = (mfxExtBuffer*)&ctx->m_coding_option;
 	ctx->m_param.NumExtParam++;
-//do nothing with picture_timing_sei , hope to be useful
-//	ctx->m_ext_param[1] = (mfxExtBuffer*)&ctx->m_picture_timing_sei;
+	//do nothing with picture_timing_sei , hope to be useful
+	//	ctx->m_ext_param[1] = (mfxExtBuffer*)&ctx->m_picture_timing_sei;
 
 	ctx->m_param.ExtParam = ctx->m_ext_param;
 
@@ -203,7 +211,7 @@ mfxStatus msdk_encode_reset_bitstream(mfxBitstream* bitstream, unsigned int size
 	return MFX_ERR_NONE;
 }
 
-void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target){
+void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int codec_id, int target){
 	msdk_encode_init_context(ctx);
 	mfxVersion version = {{1, 1}};
 	ctx->m_status = MFXInit(MFX_IMPL_HARDWARE_ANY, &version, &ctx->m_session);
@@ -225,7 +233,7 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 	}else{
 		assert(0);
 	}
-	msdk_encode_set_param(ctx, width, height, bitrate, fps, target);
+	msdk_encode_set_param(ctx, width, height, bitrate, fps, codec_id, target);
 	ctx->m_nAsyncDepth = ctx->m_param.AsyncDepth;
 
 	ctx->m_status = MFXVideoENCODE_QueryIOSurf(ctx->m_session, &ctx->m_param, &ctx->m_request);
@@ -274,8 +282,8 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 		++surf_ptr;
 	}
 
-	
-	
+
+
 }
 
 void msdk_encode_copy_to_surface(mfxFrameSurface1* surface, unsigned char * yuv_buf){

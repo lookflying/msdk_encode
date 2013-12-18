@@ -13,7 +13,7 @@ int main(int argc, char** argv){
 	int bitrate = 2000;
 	msdk_encode_context ctx;
 	//	ctx.m_session = (mfxSession)malloc(sizeof(_mfxSession));
-	msdk_encode_init(&ctx, width, height, bitrate, fps, MFX_TARGETUSAGE_BALANCED);
+	msdk_encode_init(&ctx, width, height, bitrate, fps, MSDK_ENCODE_H264, MFX_TARGETUSAGE_BALANCED);
 	//	unsigned char* buf = (unsigned char*)malloc(1280 * 720 * 3 / 2);
 
 	/*infile = fopen("/home/lookflying/john_carter_720p.yuv", "rb");*/

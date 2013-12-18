@@ -11,6 +11,7 @@ int init_encoder(int argc, char *argv[]){
 	int height = atoi(argv[2]);
 	int bitrate;
 	int fps = 25;
+	int codec_id;
 	int target = MFX_TARGETUSAGE_BALANCED;
 
 	sscanf(argv[3], "fb=%d", &bitrate);
@@ -18,10 +19,17 @@ int init_encoder(int argc, char *argv[]){
 		bitrate = 2000;
 	}
 	bitrate = 2000;
-	msdk_encode_init(&ctx, width, height, bitrate, fps, target);
+	if (width <= 720){
+		codec_id = MSDK_ENCODE_MPEG2;
+	}else{
+		codec_id = MSDK_ENCODE_H264;
+	}
+	msdk_encode_init(&ctx, width, height, bitrate, fps, codec_id, target);
 	return 0;
 }
 
+#define YUV_DUMP_FILE "/dev/shm/msdk_yuv.dump"
+#define ENCODED_DUMP_FILE "/dev/shm/msdk_encoded.dump"
 /*return value is always 0, avc_p->length indicates the length of output data which can be zero!*/
 int encode_frame(unsigned char *inputdata,
 			   struct coded_buff *avc_p){
@@ -30,12 +38,12 @@ int encode_frame(unsigned char *inputdata,
 	FILE * msdk_yuv_file;
 	static int first = 1;
 	if (first){
-		msdk_yuv_file = fopen("/dev/shm/msdk_yuv.dump", "wb");
-		msdk_264_file = fopen("/dev/shm/msdk_264.dump", "wb");
+		msdk_yuv_file = fopen(YUV_DUMP_FILE,"wb");
+		msdk_264_file = fopen(ENCODED_DUMP_FILE, "wb");
 		first = 0;
 	}else{
-		msdk_yuv_file = fopen("/dev/shm/msdk_yuv.dump", "ab");
-		msdk_264_file = fopen("/dev/shm/msdk_264.dump", "ab");
+		msdk_yuv_file = fopen(YUV_DUMP_FILE, "ab");
+		msdk_264_file = fopen(ENCODED_DUMP_FILE, "ab");
 	}
 	assert(msdk_264_file != NULL);
 	assert(msdk_yuv_file != NULL);

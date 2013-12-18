@@ -46,8 +46,9 @@ typedef struct msdk_encode_context_t{
 #define MSDK_IGNORE_MFX_STS(P, X)	{if ((X) == (P)) {P = MFX_ERR_NONE;}}
 #define MSDK_CHECK_POINTER(P, ...)	{if (!(P)) {return __VA_ARGS__;}}
 #define MSDK_SLEEP(msec) usleep(1000*msec)
-
-void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target);
+#define MSDK_ENCODE_H264	0
+#define MSDK_ENCODE_MPEG2	1
+void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int codec_id, int target);
 
 /**
 
@@ -58,7 +59,7 @@ void msdk_encode_init(msdk_encode_context *ctx, int width, int height, int bitra
 int msdk_encode_encode_frame(msdk_encode_context *ctx, unsigned char *yuv_buf, coded_buf *out_buf, int buf_allocated);
 void msdk_encode_close(msdk_encode_context *ctx);
 
-void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int target);
+void msdk_encode_set_param(msdk_encode_context *ctx, int width, int height, int bitrate, int fps, int codec_id, int target);
 mfxStatus ConvertFrameRate(mfxF64 dFrameRate, mfxU32* pnFrameRateExtN, mfxU32* pnFrameRateExtD);
 
 #endif
