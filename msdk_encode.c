@@ -150,6 +150,27 @@ mfxStatus msdk_encode_open_va_drm(msdk_encode_context *ctx){
 			ctx->m_fd = -1;
 		}
 	}
+
+	//fallback use card1
+	if (MFX_ERR_NONE != sts){
+		ctx->m_fd = open("/dev/dri/card1", O_RDWR);
+		if (ctx->m_fd < 0) sts = MFX_ERR_NOT_INITIALIZED;
+		if (MFX_ERR_NONE == sts){
+			ctx->m_va_dpy = vaGetDisplayDRM(ctx->m_fd);
+			if (!ctx->m_va_dpy){
+				close(ctx->m_fd);
+				sts = MFX_ERR_NULL_PTR;
+			}
+		}
+		if (MFX_ERR_NONE == sts){
+			va_res = vaInitialize(ctx->m_va_dpy, &major_version, &minor_version);
+			sts = va_to_mfx_status(va_res);
+			if (MFX_ERR_NONE != sts){
+				close(ctx->m_fd);
+				ctx->m_fd = -1;
+			}
+		}
+	}
 	return sts;
 }
 
